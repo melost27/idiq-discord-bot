@@ -22,7 +22,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # ---------------------------------------------------------------- configuracion
-PORTAL = "https://partner.idiq.com"
+PORTAL = os.getenv("IDIQ_PORTAL_URL", "https://partner.idiq.com").rstrip("/")
 IDIQ_USER = os.getenv("IDIQ_USER", "")
 IDIQ_PASSWORD = os.getenv("IDIQ_PASSWORD", "")
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
@@ -36,6 +36,9 @@ FIRST_RUN_NOTIFY_DAYS = int(os.getenv("FIRST_RUN_NOTIFY_DAYS", "0"))
 NOTIFY_WHEN_READY = os.getenv("NOTIFY_WHEN_READY", "1") == "1"
 # Mencion opcional en Discord, ej: "@here" o "<@&ID_DEL_ROL>"
 DISCORD_MENTION = os.getenv("DISCORD_MENTION", "")
+USER_AGENT = os.getenv("USER_AGENT", (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"))
 IDIQ_SUPPORT_PHONE = os.getenv("IDIQ_SUPPORT_PHONE", "877-875-4347")
 DATA_DIR = Path(os.getenv("DATA_DIR", "./data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -269,16 +272,25 @@ class Portal:
 
         self.close()
         self._pw = sync_playwright().start()
-        self.browser = self._pw.chromium.launch(headless=True, args=["--no-sandbox"])
-        ctx_kwargs = {"locale": "en-US", "viewport": {"width": 1400, "height": 900}}
+        launch_extra = {}
+        if os.getenv("BROWSER_PATH"):
+            launch_extra["executable_path"] = os.getenv("BROWSER_PATH")
+        self.browser = self._pw.chromium.launch(
+            headless=True, **launch_extra,
+            args=["--no-sandbox", "--disable-blink-features=AutomationControlled",
+                  "--disable-dev-shm-usage"])
+        ctx_kwargs = {"locale": "en-US", "viewport": {"width": 1400, "height": 900},
+                      "user_agent": USER_AGENT, "timezone_id": "America/Chicago"}
         if SESSION_PATH.exists():
             ctx_kwargs["storage_state"] = str(SESSION_PATH)
         ctx = self.browser.new_context(**ctx_kwargs)
+        ctx.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
         page = ctx.new_page()
         page.set_default_timeout(60_000)
         self.page = page
 
-        page.goto(f"{PORTAL}/Dashboard", wait_until="domcontentloaded")
+        self._goto(f"{PORTAL}/Dashboard")
         if "/Account/Login" in page.url or page.locator("#LoginName").count():
             self._login()
 
@@ -303,12 +315,58 @@ class Portal:
         page = self.page
         page.fill("#LoginName", IDIQ_USER)
         page.fill("#Password", IDIQ_PASSWORD)
-        page.click("form[action='/Account/Login'] button[type=submit]")
-        page.wait_for_load_state("domcontentloaded")
+        try:
+            with page.expect_navigation(timeout=60_000):
+                page.click("form[action='/Account/Login'] button[type=submit]")
+        except Exception:  # noqa
+            pass
+        self._settle()
         if "/Account/Login" in page.url:
-            page.goto(f"{PORTAL}/Dashboard", wait_until="domcontentloaded")
+            self._goto(f"{PORTAL}/Dashboard")
         if "/Account/Login" in page.url:
-            raise RuntimeError("No pude iniciar sesion en IDIQ (revisa usuario/contraseña).")
+            raise RuntimeError("No pude iniciar sesion en IDIQ (revisa usuario/contraseña). "
+                               + self._page_hint())
+        log.info("Sesion iniciada.")
+
+    def _settle(self):
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=20_000)
+        except Exception:  # noqa
+            pass
+
+    def _page_hint(self) -> str:
+        """Texto corto de la pagina actual para entender errores en los Logs."""
+        try:
+            txt = " ".join(self.page.inner_text("body", timeout=5_000).split())[:250]
+        except Exception:  # noqa
+            txt = "(sin texto)"
+        return f"URL={self.page.url} | Pagina: {txt}"
+
+    def _goto(self, url: str):
+        """Abre una URL tolerando que el portal corte/redirija la carga (ERR_ABORTED)."""
+        last = None
+        for attempt in range(1, 4):
+            try:
+                self.page.goto(url, wait_until="commit", timeout=60_000)
+            except Exception as e:  # noqa
+                last = e
+                log.info("La carga de %s se interrumpio (intento %d): %s",
+                         url, attempt, str(e).splitlines()[0])
+            self._settle()
+            body = ""
+            try:
+                body = self.page.content()
+            except Exception:  # noqa
+                pass
+            if "Incapsula incident" in body or "Request unsuccessful" in body:
+                raise RuntimeError("IDIQ bloqueo al servidor (proteccion anti-bots Incapsula). "
+                                   "Hay que correr el bot desde otra conexion.")
+            # Listo cuando cargo el login o el dashboard del portal
+            if self.page.url.startswith(PORTAL) and (
+                    self.page.locator("#LoginName").count() or "Member Status" in body):
+                return
+            time.sleep(3 * attempt)
+        raise RuntimeError(f"No pude abrir {url}: {last}. {self._page_hint()}")
 
     def close(self):
         for obj, fn in ((self.browser, "close"), (self._pw, "stop")):
@@ -370,6 +428,8 @@ def main() -> None:
                 fails += 1
                 log.exception("Error revisando el portal (intento %d)", fails)
                 portal.close()  # la proxima vuelta abre todo de nuevo
+                if SESSION_PATH.exists():
+                    SESSION_PATH.unlink()
                 if fails == 10:  # ~5 min fallando seguido
                     send_error(f"El bot no ha podido leer el portal IDIQ: {e}")
                 time.sleep(min(300, 30 * fails))  # esperar mas si sigue fallando
