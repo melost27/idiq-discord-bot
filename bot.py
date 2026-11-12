@@ -39,6 +39,9 @@ DISCORD_MENTION = os.getenv("DISCORD_MENTION", "")
 USER_AGENT = os.getenv("USER_AGENT", (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"))
+# SEND_TEST=1: al arrancar manda 2 avisos de PRUEBA (uno READY y uno NO READY). Quitalo despues.
+SEND_TEST = os.getenv("SEND_TEST", "0") == "1"
+_test_sent = False
 IDIQ_SUPPORT_PHONE = os.getenv("IDIQ_SUPPORT_PHONE", "877-875-4347")
 DATA_DIR = Path(os.getenv("DATA_DIR", "./data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -406,6 +409,16 @@ def check(portal: Portal, con: sqlite3.Connection) -> None:
     events = process(members, con, first_run)
     if first_run:
         log.info("Primera corrida: %d cuentas guardadas sin avisar.", len(members))
+    global _test_sent
+    if SEND_TEST and not _test_sent:
+        _test_sent = True
+        samples = [next((m for m in members if is_ready(m["shared_view"])), None),
+                   next((m for m in members if not is_ready(m["shared_view"])), None)]
+        for m in filter(None, samples):
+            msg = build_message("new", m)
+            msg["embeds"][0]["title"] = "🧪 PRUEBA · " + msg["embeds"][0]["title"]
+            send_discord(msg)
+        log.info("Mensajes de prueba enviados a Discord. Quita la variable SEND_TEST.")
     # Solo se escribe en Discord cuando hay actividad (cuenta nueva o cambio a View)
     for kind, m in events:
         log.info("Aviso %s: %s %s", kind, m["first_name"], m["last_name"])
