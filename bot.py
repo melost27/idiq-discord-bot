@@ -186,30 +186,35 @@ def build_message(kind: str, m: dict) -> dict:
         {"name": "Inscrito", "value": m["enrollment_date"] or "—", "inline": True},
     ]
     if not ready and kind == "new":
+        first = m["first_name"].split()[0].capitalize() if m["first_name"] else ""
         fields.append({
             "name": "⚠️ Acción para el equipo",
             "value": (
                 "Todavía **no tenemos acceso a sus puntajes** (No Consent).\n"
-                "**1.** Confirma con el cliente si **él puede ver sus puntajes** "
-                "dentro de su cuenta de IdentityIQ.\n"
-                "**2.** Si **SÍ los ve** → pídele una **captura de pantalla** de sus puntajes. "
+                "**1.** Pregúntale si **logra ver sus puntajes** en IdentityIQ *(Plantilla 1)*.\n"
+                "**2.** Si dice que **SÍ** → ahí mismo pídele una **captura de pantalla** de sus puntajes. "
                 "Con eso es suficiente.\n"
-                "**3.** Si **NO los ve** → debe llamar a **IdentityIQ al "
-                f"{IDIQ_SUPPORT_PHONE}** para que le ayuden a verificar su información."
+                "**3.** Si dice que **NO**, le sale un error o la captura **no muestra puntajes** → debe llamar a **IdentityIQ al "
+                f"{IDIQ_SUPPORT_PHONE}** para verificar su información *(Plantilla 2)*.\n"
+                "📞 Mejor por **llamada**. Si no contesta, envía las plantillas por **texto**."
             ),
             "inline": False,
         })
-        first = m["first_name"].split()[0].capitalize() if m["first_name"] else ""
         fields.append({
-            "name": "💬 Plantilla para enviarle al cliente (copiar y pegar)",
+            "name": "💬 Plantilla 1 — confirmar acceso",
             "value": (
-                f"Hola {first}, gracias por crear tu cuenta de IdentityIQ 🙌\n\n"
-                "Entra a tu cuenta en identityiq.com y dime: ¿puedes ver tus puntajes de crédito?\n\n"
-                "✅ Si SÍ los ves: mándame una captura de pantalla donde se vean tus puntajes y con eso seguimos.\n"
-                "❌ Si NO los ves: llama a IdentityIQ al "
-                f"{IDIQ_SUPPORT_PHONE} y diles que necesitas verificar tu cuenta porque no puedes ver tus puntajes. "
-                "Cuando lo resuelvas, mándame la captura.\n\n"
-                "— Equipo LM Sterling"
+                f"Hola {first}, vi que ya creaste tu cuenta de IdentityIQ. "
+                "Confírmame si logras ver tus puntajes."
+            ),
+            "inline": False,
+        })
+        fields.append({
+            "name": "💬 Plantilla 2 — si NO ve sus puntajes",
+            "value": (
+                f"{first}, eso pasa cuando IdentityIQ no pudo verificar tu identidad al crear "
+                "la cuenta. Es normal y lo hacen por tu seguridad. Llama a IdentityIQ al "
+                f"{IDIQ_SUPPORT_PHONE} y ellos te ayudan a verificarla. Cuando ya veas tus "
+                "puntajes, mándame la captura."
             ),
             "inline": False,
         })
