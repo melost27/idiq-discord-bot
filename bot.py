@@ -199,6 +199,20 @@ def build_message(kind: str, m: dict) -> dict:
             ),
             "inline": False,
         })
+        first = m["first_name"].split()[0].capitalize() if m["first_name"] else ""
+        fields.append({
+            "name": "💬 Plantilla para enviarle al cliente (copiar y pegar)",
+            "value": (
+                f"Hola {first}, gracias por crear tu cuenta de IdentityIQ 🙌\n\n"
+                "Entra a tu cuenta en identityiq.com y dime: ¿puedes ver tus puntajes de crédito?\n\n"
+                "✅ Si SÍ los ves: mándame una captura de pantalla donde se vean tus puntajes y con eso seguimos.\n"
+                "❌ Si NO los ves: llama a IdentityIQ al "
+                f"{IDIQ_SUPPORT_PHONE} y diles que necesitas verificar tu cuenta porque no puedes ver tus puntajes. "
+                "Cuando lo resuelvas, mándame la captura.\n\n"
+                "— Equipo LM Sterling"
+            ),
+            "inline": False,
+        })
     return {
         "content": DISCORD_MENTION or None,
         "username": "IDIQ Bot · LM Sterling",
