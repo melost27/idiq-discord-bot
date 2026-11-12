@@ -186,38 +186,16 @@ def build_message(kind: str, m: dict) -> dict:
         {"name": "Inscrito", "value": m["enrollment_date"] or "—", "inline": True},
     ]
     if not ready and kind == "new":
-        first = m["first_name"].split()[0].capitalize() if m["first_name"] else ""
         fields.append({
             "name": "⚠️ Acción para el equipo",
             "value": (
                 "Todavía **no tenemos acceso a sus puntajes** (No Consent).\n"
-                "**1.** Primero confirma con el cliente si **él puede ver sus puntajes** "
-                "dentro de su cuenta de IdentityIQ (mensaje 1).\n"
-                "**2.** Si **SÍ los ve** → pídele que acepte compartir su reporte con nosotros "
-                "y avisa al equipo para revisar el acceso.\n"
+                "**1.** Confirma con el cliente si **él puede ver sus puntajes** "
+                "dentro de su cuenta de IdentityIQ.\n"
+                "**2.** Si **SÍ los ve** → pídele una **captura de pantalla** de sus puntajes. "
+                "Con eso es suficiente.\n"
                 "**3.** Si **NO los ve** → debe llamar a **IdentityIQ al "
-                f"{IDIQ_SUPPORT_PHONE}** para que le ayuden a verificar su información (mensaje 2)."
-            ),
-            "inline": False,
-        })
-        fields.append({
-            "name": "💬 Mensaje 1 — confirmar si ve sus puntajes",
-            "value": (
-                f"Hola {first}, gracias por crear tu cuenta de IdentityIQ 🙌. "
-                "Una pregunta rápida: cuando entras a tu cuenta en identityiq.com, "
-                "¿puedes ver tus puntajes de crédito? Respóndeme sí o no y te digo "
-                "el siguiente paso. — Equipo LM Sterling"
-            ),
-            "inline": False,
-        })
-        fields.append({
-            "name": "💬 Mensaje 2 — si NO puede ver sus puntajes",
-            "value": (
-                f"Gracias {first}. Eso pasa cuando IdentityIQ todavía necesita verificar tu "
-                f"información. Por favor llama a IdentityIQ al {IDIQ_SUPPORT_PHONE} y diles que "
-                "no puedes ver tus puntajes y necesitas verificar tu cuenta. Es una llamada "
-                "rápida. Cuando termines, avísanos por aquí y seguimos con tu proceso. "
-                "— Equipo LM Sterling"
+                f"{IDIQ_SUPPORT_PHONE}** para que le ayuden a verificar su información."
             ),
             "inline": False,
         })
